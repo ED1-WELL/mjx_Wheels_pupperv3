@@ -434,11 +434,11 @@ class PupperV3Env(PipelineEnv):
                 feet_site_id=self._feet_site_id,
                 lower_leg_body_id=self._lower_leg_body_id,
             ),
-            "termination": rewards.reward_termination(
+            "termination": jp.float32(rewards.reward_termination(
                 done,
                 state.info["step"],
                 step_threshold=self._early_termination_step_threshold,
-            ),
+            )),
             "knee_collision": rewards.reward_geom_collision(pipeline_state, self._upper_leg_geom_ids),
             "body_collision": rewards.reward_geom_collision(pipeline_state, self._torso_geom_ids),
         }
