@@ -87,10 +87,10 @@ class PupperV3Env(PipelineEnv):
             "leg_back_l_2",
         ],
         lower_leg_body_names: List[str] = [
-            "leg_front_r_3",
-            "leg_front_l_3",
-            "leg_back_r_3",
-            "leg_back_l_3",
+            "Wheel_FR",
+            "Wheel_FL",
+            "Wheel_BR",
+            "Wheel_BL",
         ],
         resample_velocity_step: int = 500,
         linear_velocity_x_range: Tuple[float, float] = (-0.75, 0.75),
@@ -167,11 +167,20 @@ class PupperV3Env(PipelineEnv):
         sys = sys.tree_replace({"opt.timestep": physics_timestep})
 
         # override menagerie params for smoother policy
-        sys = sys.replace(
-            # dof_damping=sys.dof_damping.at[6:].set(DOF_DAMPING),
-            actuator_gainprm=sys.actuator_gainprm.at[:, 0].set(position_control_kp),
-            actuator_biasprm=sys.actuator_biasprm.at[:, 1].set(-position_control_kp).at[:, 2].set(-dof_damping),
-        )
+        # [WHEELED] Hybrid Actuation:
+        # Legs (indices 0,1, 3,4, 6,7, 9,10) -> Position Control (Gain = KP, Bias = -KP)
+        # Wheels (indices 2, 5, 8, 11) -> Velocity Control (Left as XML defaults)
+        leg_indices = np.array([0, 1, 3, 4, 6, 7, 9, 10])
+        
+        # overriding gainprm for legs only
+        current_gains = sys.actuator_gainprm
+        new_gains = current_gains.at[leg_indices, 0].set(position_control_kp)
+        
+        # overriding biasprm for legs only
+        current_bias = sys.actuator_biasprm
+        new_bias = current_bias.at[leg_indices, 1].set(-position_control_kp).at[leg_indices, 2].set(-dof_damping)
+        
+        sys = sys.replace(actuator_gainprm=new_gains, actuator_biasprm=new_bias)
 
         # override the default joint angles with default_pose
         sys.mj_model.keyframe("home").qpos[7:] = default_pose
@@ -523,11 +532,17 @@ class PupperV3Env(PipelineEnv):
         )
 
         # Construct observation and add noise
+        # [WHEELED] Mask out wheel positions (indices 2, 5, 8, 11) to avoid unbounded inputs
+        # We only want to observe the joint angles for the legs
+        q_observation = pipeline_state.q[7:] - self._default_pose + motor_ang_noise
+        wheel_indices = jp.array([2, 5, 8, 11])
+        q_observation = q_observation.at[wheel_indices].set(0.0)
+
         obs = jp.concatenate([
             lagged_imu_data,  # noised angular velocity and gravity
             state_info["command"],  # command
             state_info["desired_world_z_in_body_frame"],  # desired body orientation
-            pipeline_state.q[7:] - self._default_pose + motor_ang_noise,  # motor angles
+            q_observation,  # motor angles (masked)
             state_info["last_act"] + last_action_noise,  # last action
         ])
 
