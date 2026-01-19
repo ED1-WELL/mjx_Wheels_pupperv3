@@ -449,33 +449,45 @@ class PupperV3Env(PipelineEnv):
                 pipeline_state.qfrc_actuator[6:], pipeline_state.qvel[6:]
             ),
             "action_rate": rewards.reward_action_rate(action, state.info["last_act"]),
-            "stand_still": rewards.reward_stand_still(state.info["command"], joint_angles, self._default_pose, 0.1),
-            "stand_still_joint_velocity": rewards.reward_stand_still(
-                state.info["command"], joint_vel, jp.zeros(12), self._stand_still_command_threshold
-            ),
-            "abduction_angle": rewards.reward_abduction_angle(
-                joint_angles,
-                desired_abduction_angles=self._desired_abduction_angles,
-            ),
-            "feet_air_time": rewards.reward_feet_air_time(
-                state.info["feet_air_time"],
-                first_contact,
-                state.info["command"],
-            ),
-            "foot_slip": rewards.reward_foot_slip(
-                pipeline_state,
-                contact_filt_cm,
-                feet_site_id=self._feet_site_id,
-                lower_leg_body_id=self._lower_leg_body_id,
-            ),
-            "termination": jp.float32(rewards.reward_termination(
-                done,
-                state.info["step"],
-                step_threshold=self._early_termination_step_threshold,
-            )),
-            "knee_collision": rewards.reward_geom_collision(pipeline_state, self._upper_leg_geom_ids),
-            "body_collision": rewards.reward_geom_collision(pipeline_state, self._torso_geom_ids),
         }
+        
+        # [WHEELED] Only penalize leg joints for standing still, not wheels
+        leg_indices_for_reward = jp.array([0, 1, 3, 4, 6, 7, 9, 10])
+        rewards_dict["stand_still"] = rewards.reward_stand_still(
+            state.info["command"], 
+            joint_angles[leg_indices_for_reward], 
+            self._default_pose[leg_indices_for_reward], 
+            0.1
+        )
+        rewards_dict["stand_still_joint_velocity"] = rewards.reward_stand_still(
+            state.info["command"], 
+            joint_vel[leg_indices_for_reward], 
+            jp.zeros(8),  # 8 leg joints
+            self._stand_still_command_threshold
+        )
+        rewards_dict["abduction_angle"] = rewards.reward_abduction_angle(
+            joint_angles,
+            desired_abduction_angles=self._desired_abduction_angles,
+        )
+        rewards_dict["feet_air_time"] = rewards.reward_feet_air_time(
+            state.info["feet_air_time"],
+            first_contact,
+            state.info["command"],
+        )
+        rewards_dict["foot_slip"] = rewards.reward_foot_slip(
+            pipeline_state,
+            contact_filt_cm,
+            feet_site_id=self._feet_site_id,
+            lower_leg_body_id=self._lower_leg_body_id,
+        )
+        rewards_dict["termination"] = jp.float32(rewards.reward_termination(
+            done,
+            state.info["step"],
+            step_threshold=self._early_termination_step_threshold,
+        ))
+        rewards_dict["knee_collision"] = rewards.reward_geom_collision(pipeline_state, self._upper_leg_geom_ids)
+        rewards_dict["body_collision"] = rewards.reward_geom_collision(pipeline_state, self._torso_geom_ids)
+        
         rewards_dict = {k: v * self._reward_config.rewards.scales[k] for k, v in rewards_dict.items()}
         reward = jp.clip(sum(rewards_dict.values()) * self.dt, 0.0, 10000.0)
 
