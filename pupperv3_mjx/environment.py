@@ -41,30 +41,30 @@ class PupperV3Env(PipelineEnv):
         joint_lower_limits: List = [
             -1.220,
             -0.420,
-            -2.790,
+            -1000.0, # Wheel
             -2.510,
             -3.140,
-            -0.710,
+            -1000.0, # Wheel
             -1.220,
             -0.420,
-            -2.790,
+            -1000.0, # Wheel
             -2.510,
             -3.140,
-            -0.710,
+            -1000.0, # Wheel
         ],
         joint_upper_limits: List = [
             2.510,
             3.140,
-            0.710,
+            1000.0, # Wheel
             1.220,
             0.420,
-            2.790,
+            1000.0, # Wheel
             2.510,
             3.140,
-            0.710,
+            1000.0, # Wheel
             1.220,
             0.420,
-            2.790,
+            1000.0, # Wheel
         ],
         dof_damping: float = 0.25,
         position_control_kp: float = 5.0,
@@ -370,8 +370,33 @@ class PupperV3Env(PipelineEnv):
         )
 
         # Physics step
-        motor_targets = self._default_pose + lagged_action * self._action_scale
-        motor_targets = jp.clip(motor_targets, self.lowers, self.uppers)
+        # Physics step
+        # [WHEELED] Split control: Legs (Pos) vs Wheels (Vel)
+        wheel_indices = jp.array([2, 5, 8, 11])
+        leg_indices = jp.array([0, 1, 3, 4, 6, 7, 9, 10])
+        
+        # Legs: Position control (Existing logic: center + action * scale)
+        # Note: We can reuse the full array calc then overwrite, or mask.
+        # Original: motor_targets = self._default_pose + lagged_action * self._action_scale
+        
+        leg_targets = self._default_pose[leg_indices] + lagged_action[leg_indices] * self._action_scale
+        leg_targets = jp.clip(leg_targets, jp.array(self.lowers)[leg_indices], jp.array(self.uppers)[leg_indices])
+        
+        # Wheels: Velocity control (Action * Scale = Desired Velocity -> mapped to 'ctrl' which is gain * error in implicit, but here we likely want direct torque or velocity command)
+        # However, MJX position actuators with KP gain act as springs. 
+        # The user's request implies we want to DRIVE the wheels.
+        # If the XML actuators for wheels are "velocity" type, then `ctrl` input IS target velocity.
+        # If they are "motor", it is torque.
+        # See `__init__`: "Wheels... -> Velocity Control (Left as XML defaults)"
+        # Assuming XML defaults are correctly set to velocity actuators or we will fix them.
+        # So we just pass the scaled action directly as the command.
+        wheel_targets = lagged_action[wheel_indices] * 20.0 # scale for velocity (e.g. 20 rad/s max)
+        
+        # Re-assemble targets
+        motor_targets = jp.zeros_like(lagged_action)
+        motor_targets = motor_targets.at[leg_indices].set(leg_targets)
+        motor_targets = motor_targets.at[wheel_indices].set(wheel_targets)
+        
         pipeline_state = self.pipeline_step(state.pipeline_state, motor_targets)
         x, xd = pipeline_state.x, pipeline_state.xd
 
