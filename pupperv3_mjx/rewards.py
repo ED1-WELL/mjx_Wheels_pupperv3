@@ -82,6 +82,23 @@ def reward_feet_air_time(
     return rew_air_time
 
 
+def reward_wheels_on_ground(
+    foot_contact_z: jax.Array,
+    threshold: float = 0.01,
+) -> jax.Array:
+    """
+    [WHEELED] Penalize wheels being lifted off the ground.
+    Args:
+        foot_contact_z: Z height of each wheel/foot site relative to ground (4,)
+        threshold: Height above which wheel is considered "lifted"
+    Returns:
+        Penalty proportional to how much wheels are lifted
+    """
+    # Penalize any wheel that is above the threshold (lifted off ground)
+    lifted_height = jp.maximum(foot_contact_z - threshold, 0.0)
+    return jp.sum(jp.square(lifted_height))
+
+
 def reward_abduction_angle(joint_angles: jax.Array, desired_abduction_angles: jax.Array = jp.zeros(4)):
     # Penalize abduction angle
     return jp.sum(jp.square(joint_angles[1::3] - desired_abduction_angles))

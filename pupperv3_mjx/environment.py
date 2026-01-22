@@ -487,6 +487,8 @@ class PupperV3Env(PipelineEnv):
         ))
         rewards_dict["knee_collision"] = rewards.reward_geom_collision(pipeline_state, self._upper_leg_geom_ids)
         rewards_dict["body_collision"] = rewards.reward_geom_collision(pipeline_state, self._torso_geom_ids)
+        # [WHEELED] Penalize wheels lifting off the ground
+        rewards_dict["wheels_on_ground"] = rewards.reward_wheels_on_ground(foot_contact_z)
         
         rewards_dict = {k: v * self._reward_config.rewards.scales[k] for k, v in rewards_dict.items()}
         reward = jp.clip(sum(rewards_dict.values()) * self.dt, 0.0, 10000.0)
