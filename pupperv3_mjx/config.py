@@ -49,7 +49,7 @@ def get_config():
                         # |q_dot|.
                         stand_still_joint_velocity=-0.1,
                         # Abduction angle penalty
-                        abduction_angle=-0.1,
+                        abduction_angle=-0.5,
                         # Early termination penalty.
                         termination=-100.0,
                         # Penalizing foot slipping on the ground.

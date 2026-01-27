@@ -100,7 +100,8 @@ class PupperV3Env(PipelineEnv):
         stand_still_command_threshold: float = 0.1,
         maximum_pitch_command: float = 0.0,  # degrees
         maximum_roll_command: float = 0.0,  # degrees
-        default_pose: jax.Array = jp.array([0.26, 0.0, -0.52, -0.26, 0.0, 0.52, 0.26, 0.0, -0.52, -0.26, 0.0, 0.52]),
+        #default_pose: jax.Array = jp.array([0.26, 0.0, -0.52, -0.26, 0.0, 0.52, 0.26, 0.0, -0.52, -0.26, 0.0, 0.52]),
+        default_pose: jax.Array = jp.array([0, 0.0, -0.52, 0, 0.0, 0.52, 0, 0.0, -0.52, 0, 0.0, 0.52]),
         desired_abduction_angles: jax.Array = jp.array([0.0, 0.0, 0.0, 0.0]),
         angular_velocity_noise: float = 0.3,
         gravity_noise: float = 0.1,
